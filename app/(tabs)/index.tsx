@@ -9,6 +9,7 @@ import { centerOnUser } from '@/Services/getCurrentLocation';
 import requestForegroundPermission from '@/Services/ForegroundPermission';
 import { requestBackgroundPermission } from '@/Services/backgroundPermission';
 import { getinitialLocation } from '@/Services/initialLocation';
+import  "../../Services/backgroundservice"
 
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -23,17 +24,6 @@ const LOCATION_TRACKING_OPTIONS = {
   },
 };
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error(error);
-    return;
-  }
-  if (data) {
-    const { locations } = data as { locations: Location.LocationObject[] };
-    // Handle background location updates
-    console.log('Location in background', locations);
-  }
-});
 
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -45,15 +35,16 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
-       
+       //location fetching initiated  in background and foreground
         requestForegroundPermission()
         requestBackgroundPermission(LOCATION_TASK_NAME, LOCATION_TRACKING_OPTIONS)
-
-        // Get initial location
+        // Get initial location fetched from the device
          const initialLocation = await getinitialLocation()
         setLocation(initialLocation);
-
         // Start watching position
+
+//define a function with callback the return the value an assifgn it to state varaiabel
+
         const locationSubscription = await Location.watchPositionAsync(
           LOCATION_TRACKING_OPTIONS,
           (newLocation) => {

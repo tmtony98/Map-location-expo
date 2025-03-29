@@ -6,6 +6,9 @@ import { Crosshair } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
 import { centerOnUser } from '@/Services/getCurrentLocation';
+import requestForegroundPermission from '@/Services/ForegroundPermission';
+import { requestBackgroundPermission } from '@/Services/backgroundPermission';
+
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -41,24 +44,9 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { status: foregroundStatus } = 
-          await Location.requestForegroundPermissionsAsync();
-        
-        if (foregroundStatus !== 'granted') {
-          setErrorMsg('Permission to access location was denied');
-          setIsLoading(false);
-          return;
-        }
-
-        if (Platform.OS === 'android' || Platform.OS === 'ios') {
-          const { status: backgroundStatus } = 
-            await Location.requestBackgroundPermissionsAsync();
-          
-          if (backgroundStatus === 'granted') {
-            await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, 
-              LOCATION_TRACKING_OPTIONS);
-          }
-        }
+       
+        requestForegroundPermission()
+        requestBackgroundPermission(LOCATION_TASK_NAME, LOCATION_TRACKING_OPTIONS)
 
         // Get initial location
         const initialLocation = await Location.getCurrentPositionAsync({

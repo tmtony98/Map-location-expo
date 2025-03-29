@@ -1,7 +1,7 @@
 import { MutableRefObject } from 'react';
 import MapView from 'react-native-maps';
 
-
+type MapRef = MutableRefObject<MapView | null>;
 type Location = { 
     coords: {
         latitude: number;
@@ -9,13 +9,14 @@ type Location = {
     };
 };
 
-type MapRef = MutableRefObject<MapView | null>;
 
 
-export const centerOnUser = (location: Location, mapRef: React.RefObject<MapView>) => {
-
-    
-    if (location && mapRef.current) {
+export const centerOnUser = (
+  location: Location | null,
+  mapRef: MapRef
+) => {
+  
+    if (location && mapRef?.current) {
       mapRef.current.animateToRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,

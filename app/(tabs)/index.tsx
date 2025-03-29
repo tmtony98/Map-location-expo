@@ -1,204 +1,122 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import * as Location from 'expo-location';
+import { View, Text, TouchableOpacity } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { Crosshair } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import * as TaskManager from 'expo-task-manager';
-import { centerOnUser } from '@/Services/getCurrentLocation';
+import React from 'react';
 
-const LOCATION_TASK_NAME = 'background-location-task';
+// Import services
+import { LOCATION_TASK_NAME, defineLocationTask } from '@/Services/trackingService';
+import { requestLocationPermissions, getCurrentLocation, watchLocationUpdates, stopLocationUpdates } from '@/Services/locationService';
+import { centerOnUser, createMapRegion, LocationData } from '@/Services/getCurrentLocation';
+import { mapStyles, formatAccuracy, createMarkerProps } from '@/Services/mapService';
 
-const LOCATION_TRACKING_OPTIONS = {
-  accuracy: Location.Accuracy.BestForNavigation,
-  distanceInterval: 10, // Minimum distance (in meters) between location updates
-  deferredUpdatesInterval: 1000, // Minimum time (in milliseconds) between location updates
-  foregroundService: {
-    notificationTitle: 'Location Tracking',
-    notificationBody: 'Tracking your location in background',
-  },
-};
-
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error(error);
-    return;
-  }
-  if (data) {
-    const { locations } = data as { locations: Location.LocationObject[] };
-    // Handle background location updates
-    console.log('Location in background', locations);
-  }
-});
+// Define the background task before rendering
+defineLocationTask();
 
 export default function MapScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
 
   useEffect(() => {
-    (async () => {
+    let locationSubscription: any = null;
+
+    const setupLocation = async () => {
       try {
-        const { status: foregroundStatus } = 
-          await Location.requestForegroundPermissionsAsync();
+        // Request location permissions
+        const permissionResult = await requestLocationPermissions(LOCATION_TASK_NAME);
         
-        if (foregroundStatus !== 'granted') {
-          setErrorMsg('Permission to access location was denied');
+        if (!permissionResult.foregroundGranted) {
+          setErrorMsg(permissionResult.errorMsg || 'Permission to access location was denied');
           setIsLoading(false);
           return;
         }
 
-        if (Platform.OS === 'android' || Platform.OS === 'ios') {
-          const { status: backgroundStatus } = 
-            await Location.requestBackgroundPermissionsAsync();
-          
-          if (backgroundStatus === 'granted') {
-            await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, 
-              LOCATION_TRACKING_OPTIONS);
-          }
-        }
-
         // Get initial location
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
+        const initialLocation = await getCurrentLocation();
         setLocation(initialLocation);
 
         // Start watching position
-        const locationSubscription = await Location.watchPositionAsync(
-          LOCATION_TRACKING_OPTIONS,
-          (newLocation) => {
-            setLocation(newLocation);
-          }
-        );
-
-        return () => {
-          locationSubscription.remove();
-          Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-        };
+        locationSubscription = await watchLocationUpdates((newLocation) => {
+          setLocation(newLocation);
+        });
       } catch (err) {
         setErrorMsg('Error fetching location');
         console.error(err);
       } finally {
         setIsLoading(false);
       }
-    })();
+    };
+
+    setupLocation();
+
+    // Cleanup function
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+      
+      const cleanup = async () => {
+        await stopLocationUpdates(LOCATION_TASK_NAME);
+      };
+      
+      cleanup().catch(err => console.error('Cleanup error:', err));
+    };
   }, []);
 
-  centerOnUser(location, mapRef);
- 
+  // Function to center the map on user
+  const handleCenterOnUser = () => {
+    if (location) {
+      centerOnUser(location, mapRef);
+    }
+  };
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Loading location...</Text>
+      <View style={mapStyles.container}>
+        <Text style={mapStyles.loadingText}>Loading location...</Text>
       </View>
     );
   }
 
   if (errorMsg) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{errorMsg}</Text>
+      <View style={mapStyles.container}>
+        <Text style={mapStyles.errorText}>{errorMsg}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={mapStyles.container}>
       {location && (
         <>
           <MapView
             ref={mapRef}
-            style={styles.map}
+            style={mapStyles.map}
             showsUserLocation
             showsMyLocationButton={false}
-            initialRegion={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            }}>
-            <Marker
-              coordinate={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              }}
-              title="You are here"
-              description={`Accuracy: ±${Math.round(location.coords.accuracy || 0)}m`}
-            />
+            initialRegion={createMapRegion(location)}>
+            <Marker {...createMarkerProps(location)} />
           </MapView>
           
-          <View style={styles.overlay}>
+          <View style={mapStyles.overlay}>
             <TouchableOpacity
-              style={styles.centerButton}
-              onPress={centerOnUser}>
+              style={mapStyles.centerButton}
+              onPress={handleCenterOnUser}>
               <Crosshair color="#007AFF" size={24} />
             </TouchableOpacity>
           </View>
-          <View style={styles.accuracyContainer}>
-              <Text style={styles.accuracyText}>
-                Accuracy: ±{Math.round(location.coords.accuracy || 0)}m
-              </Text>
-            </View>
+          <View style={mapStyles.accuracyContainer}>
+            <Text style={mapStyles.accuracyText}>
+              {formatAccuracy(location)}
+            </Text>
+          </View>
         </>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  map: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    right: 16,
-    bottom: 100,
-    width: 50
-  },
-  centerButton: {
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  accuracyContainer: {
-    position: 'absolute',
-    right: 16,
-    bottom: 50,
-    width: 90,
-    backgroundColor: 'rgba(255, 255, 255, 1)',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  accuracyText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  text: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: 'red',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-});

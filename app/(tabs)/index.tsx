@@ -8,6 +8,7 @@ import * as TaskManager from 'expo-task-manager';
 import { centerOnUser } from '@/Services/getCurrentLocation';
 import requestForegroundPermission from '@/Services/ForegroundPermission';
 import { requestBackgroundPermission } from '@/Services/backgroundPermission';
+import { getinitialLocation } from '@/Services/initialLocation';
 
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -49,9 +50,7 @@ export default function MapScreen() {
         requestBackgroundPermission(LOCATION_TASK_NAME, LOCATION_TRACKING_OPTIONS)
 
         // Get initial location
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
+         const initialLocation = await getinitialLocation()
         setLocation(initialLocation);
 
         // Start watching position

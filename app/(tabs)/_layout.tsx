@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { MapPin, Settings } from 'lucide-react-native';
+import { MapPin, Settings, Wifi } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -14,6 +14,15 @@ export default function TabLayout() {
           title: 'Map',
           tabBarIcon: ({ size, color }) => (
             <MapPin size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="devices"
+        options={{
+          title: 'Devices',
+          tabBarIcon: ({ size, color }) => (
+            <Wifi size={size} color={color} />
           ),
         }}
       />
